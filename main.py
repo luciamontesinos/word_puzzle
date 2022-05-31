@@ -1,10 +1,11 @@
-
+from rich.prompt import Prompt
 from enum import Enum
 from operator import contains
 from random import choice
 import os
 from time import sleep, time
 import VirtualPainter
+from lxml import etree
 
 
 # GAME SETTINGS
@@ -26,6 +27,28 @@ class Mode(Enum):
 #################
 
 
+def parse_hocr(fp):
+    character_confidence = []
+    character = []
+    has_identified_char = False
+
+    with open(fp, 'r') as f:
+        doc = etree.parse(f)
+
+        for path in doc.xpath('//*'):
+            if 'ocrx_cinfo' in path.values():
+                conf = [x for x in path.values() if 'x_conf' in x][0]
+                character_confidence.append(conf.split('x_conf ')[1])
+                character.append(path.text)
+                has_identified_char = True
+
+    if not has_identified_char:
+        character.append(0)
+        character_confidence.append(0)
+
+    return(character[0], character_confidence[0])
+
+
 def draw_letter():
     VirtualPainter.painter()
     # Show canvas to user?
@@ -33,12 +56,23 @@ def draw_letter():
 
 def classify_letter():
     # Gets image, returns character
+    # Configured to ony recognize danish characters -c tessedit_char_whitelist=abcdefghijklmnopqrstuvwxyzøåæABCDEFGHIJKLMNOPQRSTUVWXYZØÅÆ
     stream = os.popen(
-        'tesseract -l dan+eng --oem 1 letter.jpg stdout --psm 10')
-    output = stream.read()
-    output = output.replace('\n', '')
-    print("The letter is: " + output.capitalize())
-    return output.capitalize()
+        'tesseract letter.jpg outputbase -l dan+eng --oem 1 --psm 10 -c hocr_char_boxes=1 -c tessedit_char_whitelist=abcdefghijklmnopqrstuvwxyzøåæABCDEFGHIJKLMNOPQRSTUVWXYZØÅÆ hocr')
+    stream.close()
+    character, character_confidence = parse_hocr('outputbase.hocr')
+
+    # Confirm with the user if the confidence is low
+    if float(character_confidence) > 97:
+        return character.capitalize()
+    else:
+        print("Did you draw an " + character.capitalize() + " ?")
+        return Prompt.ask("Please type the letter you drew").upper()[0]
+
+    # output = stream.read().splitlines()[0]
+    # output = output.replace('\n', '')
+    # print("The letter is: " + output.capitalize())
+    # return output.capitalize()
 
 
 def draw(difficulty):
@@ -47,9 +81,10 @@ def draw(difficulty):
     for i in range(difficulty):
         draw_letter()
         classified_letter = classify_letter()
+        print(classified_letter)
 
         letters.append(classified_letter)
-
+        print(letters)
         # Make sure it is the right capitalization
 
         # Confirm the letter with the user ???
@@ -103,8 +138,8 @@ class Game:
         print("The word was " + self.word_to_guess)
 
         # Send results
-        print("It took you: " + str(self.time_played.__ceil__) +
-              "seconds and " + str(self.current_attempt) + " attempts")
+        print("It took you: " + str(self.time_played.__ceil__()) +
+              " seconds and " + str(self.current_attempt) + " attempts")
 
         # Show pop-up with results, ask to play again or go to menu [if win, offer next level, if lose, keep same level]
 
@@ -117,6 +152,7 @@ class Game:
         # Display menu with game options
 
     def guess_word(self, guess):
+        print("YOUR GUESS: " + guess)
 
         # Check if is the right word
         if (guess == self.word_to_guess):
@@ -129,32 +165,35 @@ class Game:
                 # Check if the word is in our dictionary
                 if contains(self.word_list, guess):
                     # Check if that word has already been usef
-                    if contains(self.guessed_list, guess):
+                    if not contains(self.guessed_list, guess):
                         # Add new guess to the list
                         self.guessed_list.append(guess)
                         # Check the letters
                         for i, letter in enumerate(guess):
                             if self.word_to_guess[i] == guess[i]:
                                 # Letter is in the correct place
-                                print("Letter is in the correct place")
+                                print("Letter "+guess[i] +
+                                      " is in the correct place")
 
                             elif letter in self.word_to_guess:
                                 # Letter is in the word but in the wrong place
                                 print(
-                                    "Letter is in the word but in the wrong place")
+                                    "Letter "+guess[i] + " is in the word but in the wrong place")
                             else:
                                 # Letter is not in the word
                                 print(
-                                    "Letter is in the word but in the wrong place")
+                                    "Letter "+guess[i] + " is not in the worc")
 
                     else:
-                        print("You have already used this word, try another word")
+                        print("You have already used " +
+                              guess + ", try another word")
 
                 else:
-                    print("The word is not in the dictionary, try another word")
+                    print("The word " + guess +
+                          " is not in the dictionary, try another word")
 
             else:
-                print("The word needs to have " +
+                print("The word " + guess + " needs to have " +
                       str(self.difficulty.value) + " letters")
                 return "INCORRECT"
 
