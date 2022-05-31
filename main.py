@@ -1,7 +1,10 @@
 
-import enum
+from enum import Enum
 from operator import contains
 from random import choice
+import os
+from time import sleep, time
+import VirtualPainter
 
 
 # GAME SETTINGS
@@ -24,28 +27,38 @@ class Mode(Enum):
 
 
 def draw_letter():
-    # Show canvas to user
-    pass
+    VirtualPainter.painter()
+    # Show canvas to user?
 
 
 def classify_letter():
     # Gets image, returns character
-    pass
+    stream = os.popen(
+        'tesseract -l dan+eng --oem 1 letter.jpg stdout --psm 10')
+    output = stream.read()
+    output = output.replace('\n', '')
+    print("The letter is: " + output.capitalize())
+    return output.capitalize()
 
 
 def draw(difficulty):
     letters = []
     # Draw a letter for each character
     for i in range(difficulty):
-        drawing_letter = draw_letter()
-        classified_letter = classify_letter(drawing_letter)
-        # Confirm the letter with the user ???
+        draw_letter()
+        classified_letter = classify_letter()
+
         letters.append(classified_letter)
 
         # Make sure it is the right capitalization
 
+        # Confirm the letter with the user ???
+
+        print("Waiting 2 seconds...")
+        sleep(2)
+
     # Put the letters together in a word
-    guess = " ".join([str(letter) for letter in letters])
+    guess = "".join([str(letter) for letter in letters])
     return guess
 
 
@@ -53,59 +66,66 @@ class Game:
 
     def __init__(self, game_difficulty=Difficulty.INTERMEDIATE, game_mode=Mode.QUICK_GAME):
         self.difficulty = game_difficulty
-        self.word_list
+        self.word_list = []
         self.guessed_list = []
         self.game_mode = game_mode
-        self.word_to_guess
+        self.word_to_guess = ""
         self.time_played = 0
-        self.player
-        self.attempts
+        self.player = ""
+        self.attempts = 6
         self.current_attempt = 0
 
     def start_game(self, player='Anonymous'):
         self.player = player
 
+        print("Hello " + player + ", the game is about to start")
         # Get random word from the selected difficulty level wordlist
         self.word_to_guess = choice(self.word_list)
-
-        # Start timer
+        print("The word to guess is ", self.word_to_guess)
+        self.time_played = time()
 
         while self.current_attempt < self.attempts:
-            if self.guess_word(draw(self.difficulty)) == "CORRECT":
+            print("Guess the word! (" + str(self.attempts -
+                  self.current_attempt) + " attempts remaining)")
+
+            if self.guess_word(draw(self.difficulty.value)) == "CORRECT":
                 break
             else:
-                self.attempts -= 1
+                self.current_attempt += 1
 
         # Stop game after win or too many atempts
         self.stop_game()
 
     def stop_game(self):
         # Stop timer
-
+        self.time_played = time() - self.time_played
         # Show word
-        print("The word was" + self.word_to_guess)
+        print("The word was " + self.word_to_guess)
 
         # Send results
+        print("It took you: " + str(self.time_played.__ceil__) +
+              "seconds and " + str(self.current_attempt) + " attempts")
 
         # Show pop-up with results, ask to play again or go to menu [if win, offer next level, if lose, keep same level]
-        pass
 
     def set_difficulty(self,  difficulty, attempts=6):
         self.difficulty = difficulty
         self.attempts = attempts
-        self.word_list = ["HELLO, AUDIO, VIDEO, TRAIN"]
+        # self.word_list = ["HELLO, AUDIO, VIDEO, TRAIN, START, BEGIN, TRACE, TRUMP"]
+        self.word_list = ["NOP", "PON", "BON", "DON", "MOD"]
+
         # Display menu with game options
 
     def guess_word(self, guess):
 
         # Check if is the right word
-        if (guess == self.word_list):
-            print("Congratulations you guessed the word")
+        if (guess == self.word_to_guess):
+            print("Congratulations you guessed the word ")
 
             return "CORRECT"
         else:
             # Check if word has the correct amount of letters
-            if len(guess) == self.difficulty:
+            if len(guess) == self.difficulty.value:
                 # Check if the word is in our dictionary
                 if contains(self.word_list, guess):
                     # Check if that word has already been usef
@@ -134,11 +154,13 @@ class Game:
                     print("The word is not in the dictionary, try another word")
 
             else:
-                print("The word needs to have" + self.difficulty + "letters")
+                print("The word needs to have " +
+                      str(self.difficulty.value) + " letters")
                 return "INCORRECT"
 
 
 if __name__ == '__main__':
     print("wordle")
     game = Game()
+    game.set_difficulty(Difficulty.BEGGINER)
     game.start_game('Lucia')
